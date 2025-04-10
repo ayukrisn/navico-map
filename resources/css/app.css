@@ -2,6 +2,9 @@
 
 @import "tw-animate-css";
 
+@import 'primeicons/primeicons.css';
+
+
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
@@ -183,5 +186,69 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/*
+  ---break---
+*/
+/* a,
+.green {
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+  padding: 3px;
+} */
+
+
+/**
+INPUTS
+*/
+input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: #006A71;
+}
+
+label {
+  cursor: pointer;
+  font-size: 16px;
+}
+
+/**
+BUTTONS
+*/
+.btn {
+  display: block;
+  outline: 0;
+  cursor: pointer;
+  border: none;
+  padding: 8px;
+  margin-bottom: 5px;
+  align-content: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  border-radius: 7px;
+  font-weight: 400;
+  font-size: 16px;
+  background: #fff;
+  color: #696969;
+  box-shadow: 0 4px 14px 0 rgb(0 0 0 / 10%);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.btn:hover {
+  background: rgba(241, 241, 241, 0.9);
+  box-shadow: 0 6px 20px rgb(93 93 93 / 23%);
+}
+
+
+@media (hover: hover) {
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
   }
 }
