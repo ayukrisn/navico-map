@@ -16,7 +16,7 @@ const updateMap = (newMap) => {
 </script>
 
 <template>
-    <Head title="Dashboard" />
+    <Head title="Maps" />
 
     <AppLayout>
         <div class="map-view">
