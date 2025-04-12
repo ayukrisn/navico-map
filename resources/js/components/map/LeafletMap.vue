@@ -3,7 +3,6 @@ import 'leaflet/dist/leaflet.css'
 
 import { onBeforeUnmount, onMounted, watch, ref } from 'vue'
 import { useMarkerToolStore } from '@/stores/markerToolStore'
-import { useLineToolStore } from '@/stores/lineToolStore'
 import L from 'leaflet'
 
 const props = defineProps({
@@ -11,7 +10,6 @@ const props = defineProps({
 })
 
 const markerToolStore = useMarkerToolStore()
-const lineToolStore = useLineToolStore()
 
 const mapContainer = ref(null) // ref(null) ensures the element is ready after mounting.
 let map
@@ -20,8 +18,6 @@ const markers = ref([]) // Store markers
 const temporaryMarkers = ref([])
 const markerLayer = L.layerGroup()
 
-let currentPolyline = null
-let currentPolylinePoints = [] // Stores the clicked points
 
 /***
  * TILES
@@ -134,12 +130,8 @@ onMounted(() => {
 
   // Handle map click event
   map.on('click', handleMapClick)
-  document.addEventListener('keydown', handleKeyPress)
 })
 
-onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleKeyPress)
-})
 
 /***
  * MARKER FUNCTIONS
@@ -148,10 +140,6 @@ onBeforeUnmount(() => {
 const handleMapClick = (e) => {
   if (markerToolStore.isAddingMarker) {
     addTemporaryMarker(e.latlng) // add TEMPORARY marker
-  }
-
-  if (lineToolStore.isAddingLine) {
-    addPolylinePoint(e.latlng)
   }
 }
 
@@ -290,39 +278,6 @@ watch(
         newEditingState ? marker.dragging.enable() : marker.dragging.disable()
       }
     })
-  },
-)
-
-// Add polyline points
-const addPolylinePoint = (latlng) => {
-  currentPolylinePoints.push(latlng)
-
-  if (!currentPolyline) {
-    currentPolyline = L.polyline(currentPolylinePoints, { color: 'blue' }).addTo(map)
-  } else {
-    currentPolyline.setLatLngs(currentPolylinePoints)
-  }
-}
-
-// Handle Enter key press to finalize polyline
-const handleKeyPress = (e) => {
-  if (e.key === 'Enter' && lineToolStore.isAddingLine) {
-    console.log('Finalizing polyline:', currentPolylinePoints)
-
-    lineToolStore.isAddingLine = false // Stop adding points
-    currentPolyline = null
-    currentPolylinePoints = []
-  }
-}
-
-// Watch for isAddingLine changes
-watch(
-  () => lineToolStore.isAddingLine,
-  (isAdding) => {
-    if (!isAdding && currentPolyline) {
-      currentPolyline = null
-      currentPolylinePoints = []
-    }
   },
 )
 

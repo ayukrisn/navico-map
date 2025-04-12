@@ -3,7 +3,6 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref } from 'vue';
 import LeafletMap from '../components/map/LeafletMap.vue';
-import Line from '../components/map/Line.vue';
 import MapSwitcher from '../components/map/MapSwitcher.vue';
 import Marker from '../components/map/Marker.vue';
 
@@ -21,7 +20,6 @@ const updateMap = (newMap) => {
     <AppLayout>
         <div class="map-view">
             <Marker class="marker" />
-            <Line class="line" />
             <MapSwitcher @updateMap="updateMap" class="map-switcher" />
             <LeafletMap :selectedMap="selectedMap" ref="mapRef" class="map" />
         </div>
