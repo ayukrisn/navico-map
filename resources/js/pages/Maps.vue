@@ -1,12 +1,18 @@
 <script setup>
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { Head, usePage } from '@inertiajs/vue3';
+import { ref, watchEffect } from 'vue';
 import LeafletMap from '../components/map/LeafletMap.vue';
 import MapSwitcher from '../components/map/MapSwitcher.vue';
 import Marker from '../components/map/Marker.vue';
 
 const selectedMap = ref('OpenStreetMap'); // Default map type
+const features = ref([]);
+
+// Load initial features from Inertia props
+watchEffect(() => {
+    features.value = usePage().props.features || [];
+});
 
 const updateMap = (newMap) => {
     console.log('Switching to:', newMap);
@@ -21,7 +27,7 @@ const updateMap = (newMap) => {
         <div class="map-view">
             <Marker class="marker" />
             <MapSwitcher @updateMap="updateMap" class="map-switcher" />
-            <LeafletMap :selectedMap="selectedMap" ref="mapRef" class="map" />
+            <LeafletMap :selectedMap="selectedMap" :initialFeatures="features" ref="mapRef" class="map" />
         </div>
     </AppLayout>
 </template>
