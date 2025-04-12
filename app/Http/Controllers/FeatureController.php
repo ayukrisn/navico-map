@@ -15,7 +15,13 @@ class FeatureController extends Controller
      */
     public function index()
     {
-        $features = Feature::where('user_id', Auth::id())->get()->pluck('feature');
+        $features = Feature::where('user_id', Auth::id())->get()->map(function ($item) {
+            return [
+                'id' => $item->id, // Include the ID
+                ...$item->feature // Spread the GeoJSON feature
+            ];
+        });
+    
         return Inertia::render('Maps', [
             'features' => $features,
         ]);
@@ -45,10 +51,13 @@ class FeatureController extends Controller
 
         $feature = Feature::create([
             'user_id' => Auth::id(),
-            'feature' => $request->input('feature'),
+            'feature' => $request['feature'],
         ]);
-
-        return response()->json($feature, 201);
+    
+        return response()->json([
+            'id' => $feature->id, // Include the ID
+            ...$feature->feature // Spread the GeoJSON
+        ], 201);
     }
 
     /**
@@ -70,16 +79,41 @@ class FeatureController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Feature $feature)
     {
-        //
+        // Verify the feature belongs to the authenticated user
+        if ($feature->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'feature' => 'required|array',
+            'feature.type' => 'required|in:Feature',
+            'feature.geometry' => 'required|array',
+            'feature.geometry.type' => 'required|string',
+            'feature.geometry.coordinates' => 'required|array',
+            'feature.properties' => 'nullable|array'
+        ]);
+
+        $feature->update([
+            'feature' => $request->input('feature'),
+        ]);
+
+        return response()->json($feature);
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Feature $feature)
     {
-        //
+        // Verify the feature belongs to the authenticated user
+        if ($feature->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $feature->delete();
+
+        return response()->json(null, 204);
     }
 }

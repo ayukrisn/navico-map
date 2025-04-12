@@ -81,6 +81,7 @@ onMounted(() => {
 
     // Load initial features
     loadFeatures(props.initialFeatures);
+    console.log('initial features:', props.initialFeatures);
 
     // Handle map click event
     map.on('click', handleMapClick);
@@ -138,20 +139,8 @@ onMounted(() => {
 // Load saved features from backend
 const loadFeatures = (features) => {
     featureLayer.clearLayers();
-
     features.forEach((feature) => {
-        const layer = L.geoJSON(feature, {
-            pointToLayer: (geoJsonPoint, latlng) => {
-                return L.marker(latlng, {
-                    draggable: markerToolStore.isEditingMarker,
-                    autoPan: true,
-                });
-            },
-            onEachFeature: (feature, layer) => {
-                bindFeatureEvents(feature, layer);
-                createFeaturePopup(feature, layer);
-            },
-        }).addTo(featureLayer);
+        addSavedFeatureToMap(feature);
     });
 };
 
@@ -172,12 +161,105 @@ const createFeaturePopup = (feature, layer) => {
 // Bind events to feature layers
 const bindFeatureEvents = (feature, layer) => {
     layer.on('popupopen', () => {
-        // Attach event listeners when popup opens
-        setTimeout(() => {
-            const popup = layer.getPopup();
-        }, 0);
+        attachSavedFeaturePopupEvents(feature, layer);
+    });
+
+    layer.on('click', () => {
+        if (markerToolStore.isDeletingMarker) {
+            if (confirm('Are you sure you want to delete this marker?')) {
+                deleteFeature(feature, layer);
+            }
+        }
+    });
+
+    layer.on('dragend', (e) => {
+        const newLatLng = e.target.getLatLng();
+        const updatedFeature = {
+            ...feature,
+            geometry: {
+                ...feature.geometry,
+                coordinates: [newLatLng.lng, newLatLng.lat],
+            },
+        };
+        updateFeature(updatedFeature, layer);
     });
 };
+
+// Handle saved feature updates
+const updateFeature = async (feature, layer) => {
+    console.log(feature);
+    try {
+        // First find the database ID from your featureLayer
+        const dbFeature = findFeatureInLayer(layer);
+        if (!dbFeature?.id) {
+            throw new Error('Feature ID not found');
+        }
+
+        const response = await axios.put(`/features/${dbFeature.id}`, {
+            feature: feature,
+        });
+        console.log(response.data);
+        layer.feature = response.data.feature; // Update the feature reference
+        createFeaturePopup(response.data.feature, layer); // Refresh popup
+    } catch (error) {
+        console.error('Error updating feature:', error);
+        // Revert position if update fails
+        layer.setLatLng([feature.geometry.coordinates[1], feature.geometry.coordinates[0]]);
+    }
+};
+
+// Handle saved feature deletion
+const deleteFeature = async (feature, layer) => {
+    console.log(feature);
+    try {
+        const dbFeature = findFeatureInLayer(layer);
+        if (!dbFeature?.id) {
+            throw new Error('Feature ID not found');
+        }
+
+        await axios.delete(`/features/${feature.id}`);
+        // Double-ensure removal
+        if (featureLayer.hasLayer(layer)) {
+          console.log("has layer")
+            featureLayer.removeLayer(layer);
+        }
+
+        if (map.hasLayer(layer)) {
+            console.log('Removing directly from map');
+            map.removeLayer(layer);
+        }
+    } catch (error) {
+        console.error('Error deleting feature:', error);
+    }
+};
+
+// Add this helper function to find the full feature with ID:
+function findFeatureInLayer(layer) {
+    // Check if we have a feature reference with ID
+    if (layer.feature?.id) {
+        console.log('first:' + layer.feature?.id);
+        return layer.feature;
+    }
+
+    // Fallback: search through initialFeatures
+    if (props.initialFeatures) {
+        console.log(
+            'second' +
+                props.initialFeatures.find(
+                    (f) =>
+                        f.geometry.coordinates[0] === layer.feature.geometry.coordinates[0] &&
+                        f.geometry.coordinates[1] === layer.feature.geometry.coordinates[1],
+                ),
+        );
+        return props.initialFeatures.find(
+            (f) =>
+                f.geometry.coordinates[0] === layer.feature.geometry.coordinates[0] &&
+                f.geometry.coordinates[1] === layer.feature.geometry.coordinates[1],
+        );
+    }
+
+    return null;
+}
 
 // Handle Map Click
 const handleMapClick = (e) => {
@@ -319,14 +401,15 @@ const saveTemporaryMarker = async (feature, marker) => {
         console.log('Backend response:', response.data);
 
         // Verify the returned data matches what you expect
-        if (response.data && response.data.feature) {
+        if (response.data && response.data.id && response.data.geometry) {
             // Remove temporary marker
             removeTemporaryMarker(marker);
 
             // Add the newly saved feature to the map
-            addSavedFeatureToMap(response.data.feature);
+            addSavedFeatureToMap(response.data); // Pass the entire response
         } else {
             console.error('Unexpected response format:', response.data);
+            throw new Error('Invalid feature format received from server');
         }
     } catch (error) {
         console.error('Error saving feature:', error);
@@ -354,11 +437,22 @@ const isValidGeoJSON = (feature) => {
 };
 
 // Add a saved feature to the map
-const addSavedFeatureToMap = (feature) => {
-    if (!isValidGeoJSON(feature)) {
-        console.error('Invalid GeoJSON received:', feature);
-        return;
-    }
+const addSavedFeatureToMap = (featureData) => {
+    // Normalize the feature structure
+    const feature = {
+        id: featureData.id,
+        type: featureData.type,
+        geometry: featureData.geometry,
+        properties: {
+            ...featureData.properties,
+            id: featureData.id, // Ensure ID is in properties too if needed
+        },
+    };
+
+    // if (!isValidGeoJSON(feature)) {
+    //     console.error('Invalid GeoJSON received:', feature);
+    //     return;
+    // }
     const layer = L.geoJSON(feature, {
         pointToLayer: (geoJsonPoint, latlng) => {
             return L.marker(latlng, {
@@ -366,39 +460,65 @@ const addSavedFeatureToMap = (feature) => {
             });
         },
         onEachFeature: (feature, layer) => {
-            // setupSavedFeatureEvents(feature, layer);
-            createSavedFeaturePopup(feature, layer);
+            layer.feature = feature;
+            bindFeatureEvents(feature, layer);
+            createFeaturePopup(feature, layer);
         },
     }).addTo(featureLayer);
+    return layer;
 };
 
-// Create popup for saved features
-const createSavedFeaturePopup = (feature, layer) => {
-    const coords = feature.geometry.coordinates;
-    const content = `
-    <div class="feature-popup">
-      <h4>${feature.properties.title || 'Untitled Marker'}</h4>
-      <p>${feature.properties.description || ''}</p>
-      <small>${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</small>
+// Feature editing function
+const editFeature = (feature, layer) => {
+    const content = document.createElement('div');
+    content.innerHTML = `
+    <div class="edit-popup">
+      <h4>Edit Marker</h4>
+      <input type="text" class="edit-title" value="${feature.properties.title || ''}" placeholder="Title">
+      <textarea class="edit-description" placeholder="Description">${feature.properties.description || ''}</textarea>
+      <div class="popup-actions">
+        <button class="save-edit">Save</button>
+        <button class="cancel-edit">Cancel</button>
+      </div>
     </div>
   `;
 
-    layer.bindPopup(content);
-};
+    const popup = L.popup().setContent(content).setLatLng(layer.getLatLng());
+    layer.bindPopup(popup).openPopup();
 
-// Configure events for saved features
-const setupSavedFeatureEvents = (feature, layer) => {
-    layer.on('popupopen', () => {
-        attachSavedFeaturePopupEvents(feature, layer);
+    content.querySelector('.save-edit').addEventListener('click', () => {
+        const updatedFeature = {
+            ...feature,
+            properties: {
+                ...feature.properties,
+                title: content.querySelector('.edit-title').value,
+                description: content.querySelector('.edit-description').value,
+            },
+        };
+        updateFeature(updatedFeature, layer);
+    });
+
+    content.querySelector('.cancel-edit').addEventListener('click', () => {
+        layer.closePopup();
+        // Reopen original popup
+        setTimeout(() => {
+            createFeaturePopup(feature, layer);
+            layer.openPopup();
+        }, 50);
     });
 };
 
 // Attach event listeners to saved feature popup
 const attachSavedFeaturePopupEvents = (feature, layer) => {
-    const popup = layer.getPopup();
-    const content = popup.getElement();
+    setTimeout(() => {
+        const popup = layer.getPopup();
+        const element = popup.getElement();
+        if (!element) return;
 
-    if (!content) return;
+        element.querySelector('.edit-btn')?.addEventListener('click', () => {
+            editFeature(feature, layer);
+        });
+    }, 0);
 };
 
 // Cleanup temporary markers when component unmounts
@@ -415,29 +535,52 @@ watch(
     (newEditingState) => {
         // 1. Handle saved features in featureLayer
         featureLayer.eachLayer((layer) => {
-            console.log('Layer type:', layer.constructor.name);
-            console.log('Layer feature:', layer.feature?.geometry?.type);
-            if (layer.feature?.geometry?.type === 'Point') {
-                if (layer.setDraggable) {
-                    // Check if this is a marker with draggable capability
-                    layer.setDraggable(newEditingState);
-                } else if (layer.dragging) {
-                    // Fallback for standard markers
-                    newEditingState ? layer.dragging.enable() : layer.dragging.disable();
-                }
+            // Find the actual marker instance
+            const marker = findMarkerInLayer(layer);
+            if (marker) {
+                setMarkerDraggable(marker, newEditingState);
             }
-            console.log('Dragging available:', !!layer.dragging);
         });
 
         // 2. Handle temporary markers
         temporaryMarkers.value.forEach(({ marker }) => {
-            // newEditingState ? marker.dragging.enable() : marker.dragging.disable();
-            if (marker.dragging) {
-                newEditingState ? marker.dragging.enable() : marker.dragging.disable();
-            }
+            setMarkerDraggable(marker, newEditingState);
         });
     },
+    { immediate: true },
 );
+
+// Helper function to find marker in complex layers
+function findMarkerInLayer(layer) {
+    // Case 1: Direct marker instance
+    if (layer.setLatLng && layer.getLatLng) {
+        return layer;
+    }
+
+    // Case 2: Nested in _layers (for FeatureGroups)
+    if (layer._layers) {
+        for (const id in layer._layers) {
+            const subLayer = layer._layers[id];
+            if (subLayer.setLatLng && subLayer.getLatLng) {
+                return subLayer;
+            }
+        }
+    }
+
+    return null;
+}
+
+// Unified draggable control
+function setMarkerDraggable(marker, draggable) {
+    // Modern Leaflet (v1.7+)
+    if (typeof marker.setDraggable === 'function') {
+        marker.setDraggable(draggable);
+    }
+    // Legacy support
+    else if (marker.dragging) {
+        draggable ? marker.dragging.enable() : marker.dragging.disable();
+    }
+}
 
 // Watch for map switch updates
 watch(
