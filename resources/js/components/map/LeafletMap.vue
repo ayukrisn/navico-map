@@ -70,7 +70,7 @@ const baseMap = {
 onMounted(() => {
     // mapContainer.value gives access to the actual DOM element.
     // This avoids issues where Leaflet tries to attach to a null element.
-    map = L.map(mapContainer.value, { zoomControl: false }).setView([-8.65842, 115.213969], 13);
+    map = L.map(mapContainer.value, { zoomControl: false }).setView([-8.65842, 115.213969], 10);
 
     // Default map layer
     const defaultMap = props.selectedMap || 'OpenStreetMap';
@@ -145,7 +145,10 @@ const loadFeatures = (features) => {
 };
 
 const createFeaturePopup = (feature, layer, isEditMode = false) => {
-    const coords = feature.geometry.coordinates;
+    const currentLatLng = layer.getLatLng();
+    const currentCoords = [currentLatLng.lng, currentLatLng.lat];
+
+    const coords = currentCoords;
 
     const content = isEditMode
         ? `
@@ -275,11 +278,24 @@ const updateFeature = async (feature, layer) => {
             throw new Error('Feature ID not found');
         }
 
+        // Create clean GeoJSON without ID
+        const cleanFeature = {
+            type: feature.type,
+            geometry: feature.geometry,
+            properties: feature.properties,
+        };
+
         const response = await axios.put(`/features/${dbFeature.id}`, {
-            feature: feature,
+            feature: cleanFeature,
         });
         console.log(response.data);
-        layer.feature = response.data.feature; // Update the feature reference
+
+        // Update local reference (keeping ID if needed)
+        layer.feature = {
+            ...response.data.feature,
+            id: dbFeature.id, // Preserve ID locally if necessary
+        };
+
         createFeaturePopup(response.data.feature, layer, false); // Refresh popup
     } catch (error) {
         console.error('Error updating feature:', error);
