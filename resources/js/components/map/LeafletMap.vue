@@ -186,9 +186,9 @@ const createFeaturePopup = (feature, layer, isEditMode = false) => {
     }
 
     // Open popup if not already open
-    if (!layer.getPopup().isOpen()) {
-        layer.openPopup();
-    }
+    // if (!layer.getPopup().isOpen()) {
+    //     layer.openPopup();
+    // }
 
     // Attach appropriate event handlers
     if (isEditMode) {
@@ -264,7 +264,10 @@ const bindFeatureEvents = (feature, layer) => {
                 coordinates: [newLatLng.lng, newLatLng.lat],
             },
         };
-        updateFeature(updatedFeature, layer);
+        // Update both DB and local reference
+        updateFeature(updatedFeature, layer).then(() => {
+            feature = updatedFeature; // Update local reference
+        });
     });
 };
 
