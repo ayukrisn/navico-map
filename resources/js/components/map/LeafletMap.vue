@@ -5,8 +5,11 @@ import 'leaflet/dist/leaflet.css';
 import { useMarkerToolStore } from '@/stores/markerToolStore';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+import { useMapStore } from '@/stores/map';
+
 import axios from 'axios';
 
+const mapStore = useMapStore();
 const props = defineProps({
     selectedMap: String, // Receives selected map type from parent
     initialFeatures: Array, // Receives features from parent
@@ -131,6 +134,17 @@ onMounted(() => {
     // Add Custom Zoom Control to Map
     map.addControl(new CustomZoom());
 });
+
+// Add this method to your component
+function findMarkerByFeature(feature) {
+    let foundMarker = null;
+    featureLayer.eachLayer((layer) => {
+        if (layer.feature?.id === feature.id) {
+            foundMarker = layer;
+        }
+    });
+    return foundMarker;
+}
 
 /***
  * MARKER FUNCTIONS
@@ -579,6 +593,38 @@ onBeforeUnmount(() => {
     });
     if (map) map.remove();
 });
+
+// Add this method to find and fly to a marker
+const flyToMarker = (featureId) => {
+    let found = false;
+
+    // First check the featureLayer
+    featureLayer.eachLayer((layer) => {
+        const marker = findMarkerInLayer(layer);
+        if (marker && marker.feature?.id === featureId) {
+            const [lng, lat] = marker.feature.geometry.coordinates;
+            map.flyTo([lat, lng], 15);
+            marker.openPopup();
+            found = true;
+            return; // Exit early if found
+        }
+    });
+
+    if (!found) {
+        console.warn(`Marker with ID ${featureId} not found`);
+    }
+};
+
+// Watch for fly-to requests
+watch(
+    () => mapStore.flyToRequest,
+    (newRequest) => {
+        if (newRequest?.featureId) {
+            flyToMarker(newRequest.featureId);
+        }
+    },
+    { deep: true },
+);
 
 // Watch for editing mode changes
 watch(
