@@ -241,9 +241,78 @@ BUTTONS
     box-shadow 0.2s ease;
 }
 
+.btn-text {
+  display: block;
+  outline: 0;
+  cursor: pointer;
+  border: none;
+  padding: 8px;
+  margin-bottom: 5px;
+  align-content: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-weight: 400;
+  background: #fff;
+  color: #696969;
+  box-shadow: 0 4px 14px 0 rgb(0 0 0 / 10%);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
 .btn:hover {
   background: rgba(241, 241, 241, 0.9);
   box-shadow: 0 6px 20px rgb(93 93 93 / 23%);
+}
+
+.btn-text:hover {
+  background: rgba(241, 241, 241, 0.5);
+  text-decoration: none;
+  box-shadow: none;
+}
+
+/***
+* POP UPS
+*/
+/* For all popups */
+.feature-popup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* Uniform spacing between elements */
+  width: 200px; /* Set a fixed width for consistency */
+}
+
+.instruction-text {
+  color: #666;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.title-input, .description-input {
+  width: 100%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  box-sizing: border-box;
+}
+
+.description-input {
+  min-height: 40px;
+  resize: vertical;
+}
+
+.position-text {
+  display: block;
+  color: #444;
+  font-size: 0.85em;
+  margin-top: 4px;
+}
+
+.popup-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 

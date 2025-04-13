@@ -1,8 +1,8 @@
 <script setup>
+import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
 import { useMarkerToolStore } from '@/stores/markerToolStore';
-import L from 'leaflet';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import axios from 'axios';
@@ -144,25 +144,105 @@ const loadFeatures = (features) => {
     });
 };
 
-// Create popup for saved features
-const createFeaturePopup = (feature, layer) => {
+const createFeaturePopup = (feature, layer, isEditMode = false) => {
     const coords = feature.geometry.coordinates;
-    const content = `
-    <div class="feature-popup">
-      <h4>${feature.properties.title || 'Untitled Marker'}</h4>
-      <p>${feature.properties.description || ''}</p>
-      <small>${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</small>
-    </div>
-  `;
 
-    layer.bindPopup(content);
+    const content = isEditMode
+        ? `
+        <div class="feature-popup">
+            <h4><strong>Edit Marker</strong></h4>
+            <small class="instruction-text">For editing position, just enable edit mode and drag the marker.</small>
+            <input type="text" class="title-input" value="${feature.properties.title || ''}">
+            <textarea class="description-input" placeholder="Add detailed description here...">${feature.properties.description || ''}</textarea>
+            <small class="position-text">Position: ${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</small>
+            <div class="popup-actions">
+                <button class="save-btn btn-text">Save</button>
+                <button class="cancel-btn btn-text">Cancel</button>
+            </div>
+        </div>
+    `
+        : `
+        <div class="feature-popup">
+            <h4><strong>${feature.properties.title || 'Untitled Marker'}</strong></h4>
+            <p>${feature.properties.description || ''}</p>
+            <small class="position-text">Position: ${coords[1].toFixed(5)}, ${coords[0].toFixed(5)}</small>
+            <div class="popup-actions">
+                <button class="edit-btn btn-text">Edit</button>
+                ${markerToolStore.isDeletingMarker ? '<button class="delete-btn btn-text">Delete</button>' : ''}
+            </div>
+        </div>
+    `;
+
+    // Check if popup already exists
+    if (layer.getPopup()) {
+        // Update existing popup content
+        layer.getPopup().setContent(content);
+    } else {
+        // Create new popup
+        layer.bindPopup(content);
+    }
+
+    // Open popup if not already open
+    if (!layer.getPopup().isOpen()) {
+        layer.openPopup();
+    }
+
+    // Attach appropriate event handlers
+    if (isEditMode) {
+        attachEditPopupEvents(feature, layer);
+    } else {
+        attachViewPopupEvents(feature, layer);
+    }
+};
+
+// Event handlers for view mode
+const attachViewPopupEvents = (feature, layer) => {
+    layer.off('popupopen'); // Remove previous handlers
+
+    layer.on('popupopen', (e) => {
+        e.originalEvent?.preventDefault(); // Prevent default closing behavior
+
+        const content = layer.getPopup().getElement();
+        content.querySelector('.edit-btn.btn-text')?.addEventListener('click', (btnEvent) => {
+            btnEvent.preventDefault();
+            createFeaturePopup(feature, layer, true);
+        });
+    });
+};
+
+// Event handlers for edit mode
+const attachEditPopupEvents = (feature, layer) => {
+    layer.off('popupopen'); // Remove previous handlers
+
+    layer.on('popupopen', (e) => {
+        e.originalEvent?.preventDefault(); // Prevent default closing behavior
+
+        const content = layer.getPopup().getElement();
+        content.querySelector('.save-btn.btn-text')?.addEventListener('click', (btnEvent) => {
+            btnEvent.preventDefault();
+            const updatedFeature = {
+                ...feature,
+                properties: {
+                    ...feature.properties,
+                    title: content.querySelector('.title-input').value,
+                    description: content.querySelector('.description-input').value,
+                },
+            };
+            updateFeature(updatedFeature, layer);
+            createFeaturePopup(updatedFeature, layer, false);
+        });
+
+        content.querySelector('.cancel-btn.btn-text')?.addEventListener('click', async (btnEvent) => {
+            btnEvent.preventDefault();
+            createFeaturePopup(feature, layer, false);
+        });
+    });
 };
 
 // Bind events to feature layers
 const bindFeatureEvents = (feature, layer) => {
-    layer.on('popupopen', () => {
-        attachSavedFeaturePopupEvents(feature, layer);
-    });
+    // Initialize in view mode
+    createFeaturePopup(feature, layer, false);
 
     layer.on('click', () => {
         if (markerToolStore.isDeletingMarker) {
@@ -200,7 +280,7 @@ const updateFeature = async (feature, layer) => {
         });
         console.log(response.data);
         layer.feature = response.data.feature; // Update the feature reference
-        createFeaturePopup(response.data.feature, layer); // Refresh popup
+        createFeaturePopup(response.data.feature, layer, false); // Refresh popup
     } catch (error) {
         console.error('Error updating feature:', error);
         // Revert position if update fails
@@ -220,7 +300,7 @@ const deleteFeature = async (feature, layer) => {
         await axios.delete(`/features/${feature.id}`);
         // Double-ensure removal
         if (featureLayer.hasLayer(layer)) {
-          console.log("has layer")
+            console.log('has layer');
             featureLayer.removeLayer(layer);
         }
 
@@ -333,9 +413,12 @@ const setupTemporaryMarker = (marker, feature) => {
     });
 
     // Handle popup open to attach event listeners
-    marker.on('popupopen', () => {
+    // Open popup after a slight delay to ensure DOM is ready
+    setTimeout(() => {
+        marker.openPopup();
+        // Attach events immediately after opening
         attachTemporaryMarkerPopupEvents(marker, feature);
-    });
+    }, 50);
 };
 
 // Create HTML content for temporary marker popup
@@ -343,12 +426,13 @@ const createTemporaryMarkerPopupContent = (feature) => {
     const content = document.createElement('div');
     content.innerHTML = `
     <div class="temporary-popup">
-      <h4>New Marker</h4>
+      <h3><strong>New Marker</strong></h3>
       <p>Position: ${feature.geometry.coordinates[1].toFixed(5)}, ${feature.geometry.coordinates[0].toFixed(5)}</p>
-      <input type="text" class="title-input" placeholder="Marker title" value="${feature.properties.title}">
-      <textarea class="description-input" placeholder="Marker description">${feature.properties.description}</textarea>
+      <br>
+      <input type="text" class="title-input" placeholder="Insert marker title here" value="${feature.properties.title}">
+      <textarea class="description-input" placeholder="Insert marker description here" style="width: 100%">${feature.properties.description}</textarea>
       <div class="popup-actions">
-        <button class="save-btn">Save</button>
+        <button class="save-btn btn-text">Save Marker</button>
       </div>
     </div>
   `;
@@ -363,10 +447,15 @@ const attachTemporaryMarkerPopupEvents = (marker, feature) => {
     if (!content) return;
 
     // Handle save button click
-    content.querySelector('.save-btn').addEventListener('click', () => {
+    content.querySelector('.save-btn.btn-text').addEventListener('click', () => {
         console.log('Save button is clicked');
-        const title = content.querySelector('.title-input').value;
+        let title = content.querySelector('.title-input').value;
         const description = content.querySelector('.description-input').value;
+
+        // Transform "Unsaved Marker" to "Marker"
+        if (title === 'Unsaved Marker') {
+            title = 'Marker';
+        }
 
         const featureToSave = {
             ...feature,
@@ -449,10 +538,6 @@ const addSavedFeatureToMap = (featureData) => {
         },
     };
 
-    // if (!isValidGeoJSON(feature)) {
-    //     console.error('Invalid GeoJSON received:', feature);
-    //     return;
-    // }
     const layer = L.geoJSON(feature, {
         pointToLayer: (geoJsonPoint, latlng) => {
             return L.marker(latlng, {
@@ -462,63 +547,10 @@ const addSavedFeatureToMap = (featureData) => {
         onEachFeature: (feature, layer) => {
             layer.feature = feature;
             bindFeatureEvents(feature, layer);
-            createFeaturePopup(feature, layer);
+            createFeaturePopup(feature, layer, false);
         },
     }).addTo(featureLayer);
     return layer;
-};
-
-// Feature editing function
-const editFeature = (feature, layer) => {
-    const content = document.createElement('div');
-    content.innerHTML = `
-    <div class="edit-popup">
-      <h4>Edit Marker</h4>
-      <input type="text" class="edit-title" value="${feature.properties.title || ''}" placeholder="Title">
-      <textarea class="edit-description" placeholder="Description">${feature.properties.description || ''}</textarea>
-      <div class="popup-actions">
-        <button class="save-edit">Save</button>
-        <button class="cancel-edit">Cancel</button>
-      </div>
-    </div>
-  `;
-
-    const popup = L.popup().setContent(content).setLatLng(layer.getLatLng());
-    layer.bindPopup(popup).openPopup();
-
-    content.querySelector('.save-edit').addEventListener('click', () => {
-        const updatedFeature = {
-            ...feature,
-            properties: {
-                ...feature.properties,
-                title: content.querySelector('.edit-title').value,
-                description: content.querySelector('.edit-description').value,
-            },
-        };
-        updateFeature(updatedFeature, layer);
-    });
-
-    content.querySelector('.cancel-edit').addEventListener('click', () => {
-        layer.closePopup();
-        // Reopen original popup
-        setTimeout(() => {
-            createFeaturePopup(feature, layer);
-            layer.openPopup();
-        }, 50);
-    });
-};
-
-// Attach event listeners to saved feature popup
-const attachSavedFeaturePopupEvents = (feature, layer) => {
-    setTimeout(() => {
-        const popup = layer.getPopup();
-        const element = popup.getElement();
-        if (!element) return;
-
-        element.querySelector('.edit-btn')?.addEventListener('click', () => {
-            editFeature(feature, layer);
-        });
-    }, 0);
 };
 
 // Cleanup temporary markers when component unmounts
