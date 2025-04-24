@@ -29,6 +29,21 @@ const updateMap = (newMap) => {
     console.log('Switching to:', newMap);
     selectedMap.value = newMap; // Update selected map
 };
+
+// Handle feature created event
+const handleFeatureCreated = (newFeature) => {
+    features.value = [...features.value, newFeature];
+};
+
+// Handle feature updated event
+const handleFeatureUpdated = (updatedFeature) => {
+    features.value = features.value.map((feature) => (feature.id === updatedFeature.id ? updatedFeature : feature));
+};
+
+// Handle feature deleted event
+const handleFeatureDeleted = (featureId) => {
+    features.value = features.value.filter((feature) => feature.id !== featureId);
+};
 </script>
 
 <template>
@@ -38,7 +53,15 @@ const updateMap = (newMap) => {
         <div class="map-view">
             <Marker class="marker" />
             <MapSwitcher @updateMap="updateMap" class="map-switcher" />
-            <LeafletMap :selectedMap="selectedMap" :initialFeatures="features" ref="mapRef" class="map" />
+            <LeafletMap
+                :selectedMap="selectedMap"
+                :initialFeatures="features"
+                ref="mapRef"
+                class="map"
+                @featureCreated="handleFeatureCreated"
+                @featureUpdated="handleFeatureUpdated"
+                @featureDeleted="handleFeatureDeleted"
+            />
             <MarkerList :features="features" class="marker-list" />
         </div>
     </AppLayout>
@@ -72,7 +95,7 @@ const updateMap = (newMap) => {
     background: white;
     padding: 0.5rem;
     border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     max-height: 70vh;
     overflow-y: auto;
     width: 280px;

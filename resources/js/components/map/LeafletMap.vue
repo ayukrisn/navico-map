@@ -9,6 +9,9 @@ import { useMapStore } from '@/stores/map';
 import { useMarkerToolStore } from '@/stores/markerToolStore';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
+// Define emits
+const emit = defineEmits(['featureCreated', 'featureUpdated', 'featureDeleted']);
+
 // Props
 const props = defineProps({
     selectedMap: String, // Receives selected map type from parent
@@ -233,6 +236,9 @@ const saveTemporaryMarker = async (feature, marker) => {
         if (response.data && response.data.id && response.data.geometry) {
             // Remove temporary marker
             removeTemporaryMarker(marker);
+
+            // Emit featureCreated event with the new feature
+            emit('featureCreated', response.data);
 
             // Add the newly saved feature to the map
             addSavedFeatureToMap(response.data); // Pass the entire response
@@ -484,6 +490,9 @@ const updateFeature = async (feature, layer) => {
             ...response.data.feature,
             id: dbFeature.id, // Preserve ID locally if necessary
         };
+
+        // Emit featureUpdated event with the updated feature
+        emit('featureUpdated', layer.feature);
     } catch (error) {
         console.error('Error updating feature:', error);
         // Revert position if update fails
@@ -506,6 +515,10 @@ const deleteFeature = async (feature, layer) => {
         }
 
         await axios.delete(`/features/${feature.id}`);
+
+        // Emit featureDeleted event with the feature ID
+        emit('featureDeleted', dbFeature.id);
+        
         // Double-ensure removal
         if (featureLayer.hasLayer(layer)) {
             console.log('has layer');

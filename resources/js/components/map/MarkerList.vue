@@ -24,7 +24,6 @@ const handleMarkerClick = (feature) => {
 <template>
   <div class="marker-list" :class="{ 'dark-mode': isDarkMode }">
     <h3 class="title">Saved Markers</h3>
-    <small>This list is not responsive to the CRUD updates yet, which needs to be refreshed. Updates coming soon.</small>
     <ul class="marker-items">
       <li 
         v-for="feature in features" 
