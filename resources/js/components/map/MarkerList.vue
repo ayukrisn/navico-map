@@ -14,7 +14,6 @@ const props = defineProps({
   }
 });
 
-// Get current theme from Laravel (assuming it's passed via Inertia)
 const isDarkMode = computed(() => page.props.theme === 'dark');
 
 const handleMarkerClick = (feature) => {
